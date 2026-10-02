@@ -1,0 +1,1 @@
+{"name":"@check/server","version":"0.1.0","private":true,"scripts":{"dev":"uvicorn check_server.main:app --reload --port 8000","build":"python -m compileall -q check_server","typecheck":"python -m compileall -q check_server","test":"python -m pytest -q"}}

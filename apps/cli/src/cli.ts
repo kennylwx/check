@@ -1,19 +1,17 @@
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import { Chess, START_FEN } from './chess.js';
+import { Chess, START_FEN } from '@check/chess';
 import { modelInput } from './input.js';
-import { JevClient } from './jev.js';
-import { Stockfish } from './stockfish.js';
+import { CheckServerClient } from './api.js';
 import { render } from './ui.js';
 
 const HELP = `check — terminal chess
 
 Usage: check [--elo 1350] [--color white|black] [--fen FEN]
-             [--stockfish PATH] [--depth 12]
-             [--jev-api-key KEY] [--jev-base-url URL] [--jev-model jev]
+             [--server URL] [--depth 12]
 
 Moves accept UCI (e2e4), SAN (Nf3), or free text ("move the queen up by 1").
-Free text uses TypeSafe's JEV model and requires TYPESAFE_API_KEY.
+Free text and Stockfish moves are resolved by the Check cloud server.
 Commands: fen, fen <position>, undo, help, quit`;
 
 export async function run(args:string[]):Promise<void> {
@@ -25,16 +23,10 @@ export async function run(args:string[]):Promise<void> {
   if (!Number.isInteger(elo) || elo < 1320 || elo > 3190) throw new Error('ELO must be an integer from 1320 to 3190 (Stockfish UCI range).');
 
   const chess = new Chess(get('--fen', START_FEN)!);
-  const engine = new Stockfish(get('--stockfish', process.env.STOCKFISH_PATH || 'stockfish')!);
-  const jev = new JevClient({
-    apiKey: get('--jev-api-key', process.env.TYPESAFE_API_KEY),
-    baseUrl: get('--jev-base-url', process.env.TYPESAFE_BASE_URL || 'https://api.typesafe.ai/v1')!,
-    model: get('--jev-model', process.env.TYPESAFE_MODEL || 'jev')!,
-  });
+  const server = new CheckServerClient(get('--server', process.env.CHECK_SERVER_URL || 'http://localhost:8000')!);
   const rl = createInterface({ input: stdin, output: stdout });
   let last:number[]|null = null;
   console.log(`\n♟  CHECK  ·  You are ${human === 'w' ? 'White' : 'Black'}  ·  Stockfish ${elo} ELO\n`);
-  await engine.start(elo);
 
   try {
     while (true) {
@@ -43,7 +35,8 @@ export async function run(args:string[]):Promise<void> {
       if (status) { console.log(status); break; }
       if (chess.turn !== human) {
         stdout.write('Stockfish is thinking… ');
-        const move = await engine.bestMove(chess.fen(), depth);
+        const result = await server.engine(chess.fen(), elo, depth);
+        const move = result.move;
         const side = chess.turn;
         const san = chess.play(move);
         const played = chess.history.at(-1)!.move;
@@ -54,7 +47,7 @@ export async function run(args:string[]):Promise<void> {
 
       const raw = await rl.question(`${chess.fullmove}${chess.turn === 'b' ? '…' : '.'} your move › `);
       let intent;
-      try { intent = await modelInput(raw, chess, jev); }
+      try { intent = await modelInput(raw, chess, server); }
       catch (error) { console.log(`\n${message(error)}\n`); continue; }
       if (intent.type === 'quit') break;
       if (intent.type === 'help') { console.log(`\n${HELP}\n`); continue; }
@@ -72,7 +65,7 @@ export async function run(args:string[]):Promise<void> {
         if (intent.source === 'jev') console.log(`\nJEV chose ${san}${intent.explanation ? ` — ${intent.explanation}` : ''}\nFEN: ${chess.fen()}\n`);
       } catch (error) { console.log(`\n${message(error)}. Try e2e4, Nf3, or describe the move naturally.\n`); }
     }
-  } finally { engine.close(); rl.close(); }
+  } finally { rl.close(); }
 }
 
 export { HELP };

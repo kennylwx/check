@@ -1,45 +1,61 @@
-# check
+# Check
 
-Chess in your terminal: a Node.js CLI with a full Unicode board, TypeSafe JEV
-natural-language move input, FEN positions, and a configurable Stockfish opponent.
+Play chess against Stockfish from a terminal or browser. Both clients use the
+same FastAPI cloud service for TypeSafe JEV natural-language resolution and
+engine moves, so API credentials and Stockfish never reach an end user.
 
-## Install
+## Monorepo
 
-Requirements: Node.js 18+ and a `stockfish` executable on your `PATH`.
+This is a pnpm workspace orchestrated by Turborepo:
 
-```sh
-npm install -g .
-export TYPESAFE_API_KEY="your-key"
-check --elo 1500
-```
+- `apps/cli` — the installable `check` TypeScript CLI.
+- `apps/web` — responsive Vite/TypeScript chess application.
+- `apps/server` — FastAPI service hosting JEV and Stockfish.
+- `packages/chess` — shared, strictly typed chess rules and FEN package.
 
-If Stockfish lives elsewhere, use `check --stockfish /path/to/stockfish` or set
-`STOCKFISH_PATH`. Stockfish exposes calibrated strength from 1320–3190 ELO.
+## Requirements
 
-## Play
-
-```text
-check --elo 1800 --color black
-check --fen "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
-```
-
-Enter moves as **SAN** (`Nf3`, `O-O`), **UCI** (`g1f3`), or ordinary phrases
-such as `move the queen up by 1`. Free text is sent to TypeSafe's `jev` model
-with the current FEN and every legal move. JEV returns a typed move and resulting
-FEN; both are independently checked by the local chess engine before the game
-progresses. Exact SAN/UCI and commands remain local. Set `TYPESAFE_BASE_URL` and
-`TYPESAFE_MODEL` to override the default API endpoint or model. Type `fen` to print the current position,
-`fen <position>` to load one, `undo`, `help`, or `quit`.
-
-Run `npm test` to test move generation, checkmate, input modeling, and rendering.
-
-## Development
-
-The application source is strict TypeScript in `src/`. Compiled JavaScript and
-declaration files are generated in `dist/` rather than checked into Git.
+- Node.js 20+ and pnpm 10
+- Python 3.11+
+- Stockfish on the server's `PATH`
+- A TypeSafe API key for the JEV model
 
 ```sh
-npm install
-npm run typecheck
-npm test
+pnpm install
+python -m venv .venv
+. .venv/bin/activate
+pip install -e 'apps/server[dev]'
+export TYPESAFE_API_KEY='your-key'
+pnpm dev
+```
+
+Turborepo starts the API at `http://localhost:8000` and the website at
+`http://localhost:5173`. Run the CLI in another terminal:
+
+```sh
+pnpm --filter @check/cli build
+node apps/cli/bin/check.js --server http://localhost:8000 --elo 1500
+```
+
+Set `CHECK_SERVER_URL` for the CLI or `VITE_CHECK_SERVER_URL` when building the
+website for a deployed API. Server configuration supports `TYPESAFE_BASE_URL`,
+`TYPESAFE_MODEL`, `STOCKFISH_PATH`, and comma-separated `CHECK_ORIGINS`.
+
+## Cloud API
+
+`POST /api/resolve` accepts `{ instruction, fen }`. The server sends the current
+FEN and legal moves to JEV, verifies its response with `python-chess`, and returns
+`{ move, fen, explanation }`. `POST /api/engine` accepts `{ fen, elo, depth }`
+and returns a verified Stockfish move in the same shape. `GET /health` is suitable
+for container probes.
+
+The server deliberately owns both integrations: neither browser nor CLI receives
+the JEV key or direct access to the engine process.
+
+## Quality checks
+
+```sh
+pnpm typecheck
+pnpm test
+pnpm build
 ```

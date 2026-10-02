@@ -1,4 +1,4 @@
-import type { Chess } from './chess.js';
+import type { Chess } from '@check/chess';
 const GLYPHS:Record<string,string>={K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
 interface RenderOptions { perspective?:'w'|'b'; last?:number[]|null; color?:boolean }
 export function render(chess:Chess,{perspective='w',last=null,color=Boolean(process.stdout.isTTY)}:RenderOptions={}):string{

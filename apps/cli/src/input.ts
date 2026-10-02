@@ -1,6 +1,6 @@
-import { squareName } from './chess.js';
-import type { Chess } from './chess.js';
-import type { JevClient } from './jev.js';
+import { squareName } from '@check/chess';
+import type { Chess } from '@check/chess';
+import type { CheckServerClient } from './api.js';
 
 export type InputIntent =
   | { type:'empty' }
@@ -12,7 +12,7 @@ export type InputIntent =
   | { type:'move'; value:string; source:'notation'|'jev'; fen?:string; explanation?:string };
 
 /** Parse local commands/notation; delegate all genuinely free-form text to JEV. */
-export async function modelInput(raw:string, chess:Chess, jev?:Pick<JevClient,'resolve'>):Promise<InputIntent> {
+export async function modelInput(raw:string, chess:Chess, server?:Pick<CheckServerClient,'resolve'>):Promise<InputIntent> {
   const text = String(raw).trim();
   const lower = text.toLowerCase();
   if (!text) return { type: 'empty' };
@@ -30,7 +30,7 @@ export async function modelInput(raw:string, chess:Chess, jev?:Pick<JevClient,'r
   });
   if (exact) return { type: 'move', value: squareName(exact.from) + squareName(exact.to) + (exact.promotion || ''), source: 'notation' };
 
-  if (!jev) throw new Error('JEV client is required for natural-language input');
-  const result = await jev.resolve(text, chess);
+  if (!server) throw new Error('Check server is required for natural-language input');
+  const result = await server.resolve(text, chess);
   return { type: 'move', value: result.move, fen: result.fen, explanation: result.explanation, source: 'jev' };
 }
