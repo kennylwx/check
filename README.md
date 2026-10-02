@@ -16,20 +16,19 @@ This is a pnpm workspace orchestrated by Turborepo:
 ## Requirements
 
 - Node.js 20+ and pnpm 10
-- Python 3.11+
+- Python 3.12 and [uv](https://docs.astral.sh/uv/)
 - Stockfish on the server's `PATH`
 - A TypeSafe API key for the JEV model
 
 ```sh
 pnpm install
-python -m venv .venv
-. .venv/bin/activate
-pip install -e 'apps/server[dev]'
+uv sync --all-packages --all-groups
 export TYPESAFE_API_KEY='your-key'
 pnpm dev
 ```
 
-Turborepo starts the API at `http://localhost:8000` and the website at
+The root `pyproject.toml` defines an uv workspace and `apps/server` is its
+`check-server` member. Turborepo starts the API at `http://localhost:8000` and the website at
 `http://localhost:5173`. Run the CLI in another terminal:
 
 ```sh
@@ -52,10 +51,31 @@ for container probes.
 The server deliberately owns both integrations: neither browser nor CLI receives
 the JEV key or direct access to the engine process.
 
+## Web terminal and feedback loop
+
+The browser intentionally mirrors the CLI rather than presenting a graphical
+dashboard. It accepts `e2e4`, `Nf3`, unrestricted instructions, `fen`, `undo`,
+`new`, and `help` at a terminal prompt. Exact notation is validated locally;
+natural language and Stockfish turns go through the same cloud endpoints as the
+CLI.
+
+Playwright exercises commands against mocked cloud responses and maintains a
+visual snapshot. The screenshot project writes the reviewable current UI to
+`apps/web/screenshots/check-terminal.png`. CI uploads that image, the HTML report,
+and failure artifacts on every run, making visual inspection part of the normal
+feedback loop.
+
+```sh
+pnpm --filter @check/web exec playwright install chromium
+pnpm --filter @check/web test
+pnpm --filter @check/web screenshot
+```
+
 ## Quality checks
 
 ```sh
 pnpm typecheck
 pnpm test
 pnpm build
+uv run --package check-server pytest -q
 ```

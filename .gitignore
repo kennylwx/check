@@ -5,3 +5,6 @@ node_modules/
 __pycache__/
 .pytest_cache/
 .venv/
+apps/web/screenshots/*.png
+apps/web/test-results/
+apps/web/playwright-report/
